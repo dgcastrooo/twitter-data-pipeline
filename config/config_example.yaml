@@ -1,0 +1,16 @@
+# Exemplo de arquivo de configuração
+# NÃO coloque dados reais aqui!
+twitter:
+  bearer_token: "YOUR_TWITTER_BEARER_TOKEN"
+
+aws:
+  s3_bucket: "your-bucket-name"
+  region: "your-aws-region"
+
+snowflake:
+  user: "YOUR_SNOWFLAKE_USER"
+  password: "YOUR_SNOWFLAKE_PASSWORD"
+  account: "YOUR_SNOWFLAKE_ACCOUNT"
+  warehouse: "YOUR_WAREHOUSE"
+  database: "YOUR_DATABASE"
+  schema: "PUBLIC"
