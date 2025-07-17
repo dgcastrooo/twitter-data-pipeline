@@ -1,0 +1,6 @@
+boto3
+tweepy
+pandas
+pyarrow
+apache-airflow
+snowflake-connector-python
