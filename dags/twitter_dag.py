@@ -1,73 +1,62 @@
-# DAG de processamento de tweets (placeholder)
-# Importações necessárias do Airflow e Python padrão
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from datetime import datetime
-import json
-import pandas as pd
-import os
+from airflow import DAG  # Importa a classe DAG para definir o fluxo de trabalho
+from airflow.operators.python import PythonOperator  # Importa operador para tarefas Python
+from datetime import datetime, timedelta  # Importa para controle de datas e intervalos
+import os  # Módulo para manipulação de caminhos de arquivos
+import json  # Módulo para manipulação de arquivos JSON
+import pandas as pd  # Biblioteca para manipulação de dados
+import logging  # Biblioteca para logs estruturados
 
-# Argumentos padrão do DAG (quando inicia e número de tentativas)
 default_args = {
-    'start_date': datetime(2025, 7, 21),
-    'retries': 1,
+    'owner': 'diogo',  # Responsável pelo DAG
+    'start_date': datetime(2025, 7, 21),  # Data inicial para o DAG começar a rodar
+    'retries': 1,  # Número de tentativas em caso de falha
+    'retry_delay': timedelta(minutes=5),  # Tempo de espera entre tentativas
+    'email_on_failure': False,  # Não enviar e-mail em caso de falha
 }
 
-# Função que extrai os dados do arquivo JSON e transforma em Parquet
 def extract_and_transform():
-    # Caminho do arquivo de entrada JSON
-    input_path = os.path.join(os.getcwd(), 'data', 'tweets_sample.json')
-    
-    # Caminho do arquivo de saída Parquet
-    output_path = os.path.join(os.getcwd(), 'data', 'tweets_clean.parquet')
+    logging.basicConfig(level=logging.INFO)  # Configura o nível de logs para INFO
 
-    # Abrindo o arquivo JSON com os tweets
-    with open(input_path, 'r', encoding='utf-8') as f:
-        tweets = json.load(f)
+    input_path = os.path.join(os.getcwd(), 'data', 'tweets_sample.json')  # Caminho do arquivo JSON de entrada
+    output_path = os.path.join(os.getcwd(), 'data', 'tweets_clean.parquet')  # Caminho do arquivo Parquet de saída
 
-    # Transformando o JSON em um DataFrame com Pandas
-    df = pd.json_normalize(tweets)
+    logging.info(f"Iniciando extração de dados do arquivo: {input_path}")  # Log da etapa de início
 
-    # Selecionando apenas colunas úteis
-    df = df[[
-        'id',
-        'created_at',
-        'text',
-        'user.id',
-        'user.name',
-        'user.screen_name',
-        'lang'
-    ]]
+    if not os.path.exists(input_path):  # Verifica se o arquivo JSON existe
+        raise FileNotFoundError(f"❌ Arquivo JSON não encontrado em: {input_path}")  # Erro caso não exista
 
-    # Renomeando colunas para nomes mais claros
-    df.columns = [
-        'tweet_id',
-        'created_at',
-        'text',
-        'user_id',
-        'user_name',
-        'screen_name',
-        'language'
-    ]
+    with open(input_path, 'r', encoding='utf-8') as f:  # Abre o arquivo JSON para leitura
+        tweets = json.load(f)  # Carrega o conteúdo JSON
 
-    # Salvando os dados transformados em formato Parquet
-    df.to_parquet(output_path, index=False)
-    print("Arquivo Parquet salvo em:", output_path)
+    df = pd.json_normalize(tweets)  # Normaliza o JSON aninhado para DataFrame plano
+    logging.info("✅ JSON carregado e normalizado com sucesso.")  # Log da normalização feita
 
-# Definição do DAG propriamente dito
+    if df.empty:  # Valida se o DataFrame está vazio
+        raise ValueError("❌ DataFrame resultante está vazio.")  # Erro caso não haja dados
+
+    required_columns = ['id', 'created_at', 'text']  # Colunas essenciais para validação
+    for col in required_columns:  # Loop para checar cada coluna obrigatória
+        if col not in df.columns:  # Se faltar alguma coluna
+            raise ValueError(f"❌ Coluna obrigatória ausente: {col}")  # Erro específico
+
+    df = df[['id', 'created_at', 'text', 'user.id', 'user.name', 'user.screen_name', 'lang']]  # Seleção de colunas úteis
+
+    df.columns = ['tweet_id', 'created_at', 'text', 'user_id', 'user_name', 'screen_name', 'language']  # Renomeia colunas para clareza
+
+    df.to_parquet(output_path, index=False)  # Salva o DataFrame como arquivo Parquet sem índice
+    logging.info(f"✅ Arquivo Parquet salvo com sucesso em: {output_path}")  # Log de sucesso na gravação
+
 with DAG(
-    dag_id='twitter_data_pipeline',  # Nome do DAG
-    default_args=default_args,       # Argumentos definidos acima
-    schedule_interval=None,          # Executado manualmente
-    catchup=False,                   # Não executa tarefas antigas
-    description='Extrai e transforma tweets para Parquet',
+    dag_id='twitter_data_pipeline',  # Identificador único do DAG
+    default_args=default_args,  # Argumentos padrão do DAG
+    schedule_interval=None,  # Não agendado automaticamente, roda manualmente
+    catchup=False,  # Não executa runs antigos que não foram executados
+    description='Extrai e transforma tweets com validação e logs',  # Descrição do DAG
 ) as dag:
 
-    # Operador Python chamando a função de transformação
     process_tweets = PythonOperator(
-        task_id='extract_transform_tweets',      # Nome da tarefa
-        python_callable=extract_and_transform    # Função Python a ser chamada
+        task_id='extract_transform_tweets',  # Nome da tarefa
+        python_callable=extract_and_transform  # Função Python chamada pela tarefa
     )
 
-    # Definição da sequência de tarefas (neste caso, só uma)
-    process_tweets
+    process_tweets  # Define a tarefa a ser executada (única neste DAG)
