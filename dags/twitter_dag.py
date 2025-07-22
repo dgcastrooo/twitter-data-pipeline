@@ -48,7 +48,7 @@ def extract_and_transform():  # Função para extração e transformação dos d
 
 def upload():  # Função que faz o upload do arquivo transformado para o S3
     file_path = '/opt/airflow/data/tweets_clean.parquet'  # Caminho do arquivo local (dentro do container)
-    bucket_name = 'twitter-data-pipeline-diogo '  # Substitua pelo nome do seu bucket
+    bucket_name = 'twitter-data-pipeline-diogo '  # Nome do bucket
     s3_key = 'twitter/tweets_clean.parquet'  # Caminho destino no bucket
     upload_to_s3(file_path, bucket_name, s3_key)  # Chama a função de upload
 
