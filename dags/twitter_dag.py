@@ -53,7 +53,7 @@ def upload():  # Função que faz o upload do arquivo transformado para o S3
     upload_to_s3(file_path, bucket_name, s3_key)  # Chama a função de upload
 
 with DAG(
-    dag_id='twitter_data_pipeline',  # Identificador único do DAG
+    dag_id='twitter_dag',  # Identificador único do DAG
     default_args=default_args,  # Argumentos padrão do DAG
     schedule_interval=None,  # Não agendado automaticamente, roda manualmente
     catchup=False,  # Não executa runs antigos que não foram executados
