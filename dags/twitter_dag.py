@@ -5,6 +5,7 @@ import os  # Módulo para manipulação de caminhos de arquivos
 import json  # Módulo para manipulação de arquivos JSON
 import pandas as pd  # Biblioteca para manipulação de dados
 import logging  # Biblioteca para logs estruturados
+from scripts.upload_to_s3 import upload_to_s3  # Script auxiliar para carregar os arquivos no S3
 
 default_args = {
     'owner': 'diogo',  # Responsável pelo DAG
@@ -14,7 +15,7 @@ default_args = {
     'email_on_failure': False,  # Não enviar e-mail em caso de falha
 }
 
-def extract_and_transform():
+def extract_and_transform():  # Função para extração e transformação dos dados
     logging.basicConfig(level=logging.INFO)  # Configura o nível de logs para INFO
 
     input_path = os.path.join(os.getcwd(), 'data', 'tweets_sample.json')  # Caminho do arquivo JSON de entrada
@@ -40,11 +41,16 @@ def extract_and_transform():
             raise ValueError(f"❌ Coluna obrigatória ausente: {col}")  # Erro específico
 
     df = df[['id', 'created_at', 'text', 'user.id', 'user.name', 'user.screen_name', 'lang']]  # Seleção de colunas úteis
-
     df.columns = ['tweet_id', 'created_at', 'text', 'user_id', 'user_name', 'screen_name', 'language']  # Renomeia colunas para clareza
 
     df.to_parquet(output_path, index=False)  # Salva o DataFrame como arquivo Parquet sem índice
     logging.info(f"✅ Arquivo Parquet salvo com sucesso em: {output_path}")  # Log de sucesso na gravação
+
+def upload():  # Função que faz o upload do arquivo transformado para o S3
+    file_path = '/opt/airflow/data/tweets_clean.parquet'  # Caminho do arquivo local (dentro do container)
+    bucket_name = 'seu-bucket-aqui'  # Substitua pelo nome do seu bucket
+    s3_key = 'twitter/tweets_clean.parquet'  # Caminho destino no bucket
+    upload_to_s3(file_path, bucket_name, s3_key)  # Chama a função de upload
 
 with DAG(
     dag_id='twitter_data_pipeline',  # Identificador único do DAG
@@ -54,9 +60,14 @@ with DAG(
     description='Extrai e transforma tweets com validação e logs',  # Descrição do DAG
 ) as dag:
 
-    process_tweets = PythonOperator(
-        task_id='extract_transform_tweets',  # Nome da tarefa
-        python_callable=extract_and_transform  # Função Python chamada pela tarefa
+    extract_transform_task = PythonOperator(  # Task de extração e transformação
+        task_id='extract_transform_tweets',  # Nome da task
+        python_callable=extract_and_transform  # Função Python chamada
     )
 
-    process_tweets  # Define a tarefa a ser executada (única neste DAG)
+    upload_task = PythonOperator(  # Task que realiza o upload para o S3
+        task_id='upload_to_s3',  # Nome da task
+        python_callable=upload  # Função Python chamada
+    )
+
+    extract_transform_task >> upload_task  # Executa upload após extração e transformação
