@@ -5,3 +5,4 @@ pyarrow
 apache-airflow
 snowflake-connector-python
 boto3
+tweepy
