@@ -24,27 +24,27 @@ def extract_and_transform():  # Função para extração e transformação dos d
     logging.info(f"Iniciando extração de dados do arquivo: {input_path}")  # Log da etapa de início
 
     if not os.path.exists(input_path):  # Verifica se o arquivo JSON existe
-        raise FileNotFoundError(f"❌ Arquivo JSON não encontrado em: {input_path}")  # Erro caso não exista
+        raise FileNotFoundError(f"Arquivo JSON não encontrado em: {input_path}")  # Erro caso não exista
 
     with open(input_path, 'r', encoding='utf-8') as f:  # Abre o arquivo JSON para leitura
         tweets = json.load(f)  # Carrega o conteúdo JSON
 
     df = pd.json_normalize(tweets)  # Normaliza o JSON aninhado para DataFrame plano
-    logging.info("✅ JSON carregado e normalizado com sucesso.")  # Log da normalização feita
+    logging.info("JSON carregado e normalizado com sucesso.")  # Log da normalização feita
 
     if df.empty:  # Valida se o DataFrame está vazio
-        raise ValueError("❌ DataFrame resultante está vazio.")  # Erro caso não haja dados
+        raise ValueError("DataFrame resultante está vazio.")  # Erro caso não haja dados
 
     required_columns = ['id', 'created_at', 'text']  # Colunas essenciais para validação
     for col in required_columns:  # Loop para checar cada coluna obrigatória
         if col not in df.columns:  # Se faltar alguma coluna
-            raise ValueError(f"❌ Coluna obrigatória ausente: {col}")  # Erro específico
+            raise ValueError(f"Coluna obrigatória ausente: {col}")  # Erro específico
 
     df = df[['id', 'created_at', 'text', 'user.id', 'user.name', 'user.screen_name', 'lang']]  # Seleção de colunas úteis
     df.columns = ['tweet_id', 'created_at', 'text', 'user_id', 'user_name', 'screen_name', 'language']  # Renomeia colunas para clareza
 
     df.to_parquet(output_path, index=False)  # Salva o DataFrame como arquivo Parquet sem índice
-    logging.info(f"✅ Arquivo Parquet salvo com sucesso em: {output_path}")  # Log de sucesso na gravação
+    logging.info(f"Arquivo Parquet salvo com sucesso em: {output_path}")  # Log de sucesso na gravação
 
 def upload():  # Função que faz o upload do arquivo transformado para o S3
     file_path = '/opt/airflow/data/tweets_clean.parquet'  # Caminho do arquivo local (dentro do container)
