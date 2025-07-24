@@ -6,6 +6,7 @@ import json  # Módulo para manipulação de arquivos JSON
 import pandas as pd  # Biblioteca para manipulação de dados
 import logging  # Biblioteca para logs estruturados
 from scripts.upload_to_s3 import upload_to_s3  # Script auxiliar para carregar os arquivos no S3
+import tweepy
 
 default_args = {
     'owner': 'diogo',  # Responsável pelo DAG
@@ -15,42 +16,65 @@ default_args = {
     'email_on_failure': False,  # Não enviar e-mail em caso de falha
 }
 
-def extract_and_transform():  # Função para extração e transformação dos dados
+def extract_and_transform():  # Função para extrair tweets da API e salvar como Parquet
     logging.basicConfig(level=logging.INFO)  # Configura o nível de logs para INFO
 
-    input_path = os.path.join(os.getcwd(), 'data', 'tweets_sample.json')  # Caminho do arquivo JSON de entrada
-    output_path = os.path.join(os.getcwd(), 'data', 'tweets_clean.parquet')  # Caminho do arquivo Parquet de saída
+    bearer_token = os.getenv("TWITTER_BEARER_TOKEN")  # Recupera o token de autenticação do ambiente
 
-    logging.info(f"Iniciando extração de dados do arquivo: {input_path}")  # Log da etapa de início
+    if not bearer_token:  # Verifica se o token está presente
+        raise ValueError("Variável de ambiente TWITTER_BEARER_TOKEN não está definida.")  # Erro se faltar o token
 
-    if not os.path.exists(input_path):  # Verifica se o arquivo JSON existe
-        raise FileNotFoundError(f"Arquivo JSON não encontrado em: {input_path}")  # Erro caso não exista
+    client = tweepy.Client(bearer_token=bearer_token)  # Inicializa o cliente da API com o token
 
-    with open(input_path, 'r', encoding='utf-8') as f:  # Abre o arquivo JSON para leitura
-        tweets = json.load(f)  # Carrega o conteúdo JSON
+    query = "data engineering -is:retweet lang:pt"  # Termo de busca: tweets sobre data engineering, em português, excluindo retweets
 
-    df = pd.json_normalize(tweets)  # Normaliza o JSON aninhado para DataFrame plano
-    logging.info("JSON carregado e normalizado com sucesso.")  # Log da normalização feita
+    response = client.search_recent_tweets(  # Realiza a busca por tweets recentes
+        query=query,  # Termo de busca
+        tweet_fields=["id", "text", "created_at", "lang"],  # Campos a serem retornados do tweet
+        expansions=["author_id"],  # Expande os dados do autor
+        user_fields=["id", "name", "username"],  # Campos do usuário autor
+        max_results=100  # Quantidade máxima de tweets retornados (limite da API)
+    )
 
-    if df.empty:  # Valida se o DataFrame está vazio
-        raise ValueError("DataFrame resultante está vazio.")  # Erro caso não haja dados
+    if not response.data:  # Verifica se algum tweet foi retornado
+        raise ValueError("Nenhum tweet retornado pela API.")  # Erro se a resposta estiver vazia
 
-    required_columns = ['id', 'created_at', 'text']  # Colunas essenciais para validação
-    for col in required_columns:  # Loop para checar cada coluna obrigatória
-        if col not in df.columns:  # Se faltar alguma coluna
-            raise ValueError(f"Coluna obrigatória ausente: {col}")  # Erro específico
+    tweets = response.data  # Lista de objetos Tweet
+    users = {user.id: user for user in response.includes["users"]}  # Mapeia usuários por ID
 
-    df = df[['id', 'created_at', 'text', 'user.id', 'user.name', 'user.screen_name', 'lang']]  # Seleção de colunas úteis
-    df.columns = ['tweet_id', 'created_at', 'text', 'user_id', 'user_name', 'screen_name', 'language']  # Renomeia colunas para clareza
+    data = []  # Lista para armazenar os dados extraídos
 
-    df.to_parquet(output_path, index=False)  # Salva o DataFrame como arquivo Parquet sem índice
-    logging.info(f"Arquivo Parquet salvo com sucesso em: {output_path}")  # Log de sucesso na gravação
+    for tweet in tweets:  # Itera sobre cada tweet retornado
+        user = users.get(tweet.author_id)  # Busca o autor do tweet
+        data.append({  # Adiciona os dados do tweet e do usuário
+            "tweet_id": tweet.id,
+            "created_at": tweet.created_at,
+            "text": tweet.text,
+            "user_id": user.id if user else None,
+            "user_name": user.name if user else None,
+            "screen_name": user.username if user else None,
+            "language": tweet.lang
+        })
+
+    df = pd.DataFrame(data)  # Converte a lista de dicionários para DataFrame
+
+    if df.empty:  # Verifica se o DataFrame está vazio
+        raise ValueError("DataFrame resultante está vazio.")  # Erro caso não haja dados válidos
+
+    output_path = os.path.join(os.getcwd(), 'data', 'tweets_clean.parquet')  # Caminho de saída do arquivo Parquet
+
+    df.to_parquet(output_path, index=False)  # Salva o DataFrame em formato Parquet
+    logging.info(f"Arquivo Parquet salvo com sucesso em: {output_path}")  # Log de sucesso
+
+
 
 def upload():  # Função que faz o upload do arquivo transformado para o S3
     file_path = '/opt/airflow/data/tweets_clean.parquet'  # Caminho do arquivo local (dentro do container)
     bucket_name = 'twitter-data-pipeline-diogo'  # Nome do bucket
     s3_key = 'twitter/tweets_clean.parquet'  # Caminho destino no bucket
     upload_to_s3(file_path, bucket_name, s3_key)  # Chama a função de upload
+
+
 
 with DAG(
     dag_id='twitter_dag',  # Identificador único do DAG
