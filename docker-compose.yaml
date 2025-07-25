@@ -35,9 +35,10 @@ x-airflow-common:
     # Requisitos adicionais do pip
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
 
-    # Variáveis de ambiente da AWS para uso com boto3
+    # Variáveis de ambiente da AWS/X para uso com boto3
     AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
     AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    TWITTER_BEARER_TOKEN: ${TWITTER_BEARER_TOKEN}
 
   # Volumes montados no container para persistência e visibilidade dos scripts/dados
   volumes:
