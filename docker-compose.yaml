@@ -1,55 +1,31 @@
-# Configuração comum do Airflow
 x-airflow-common:
   &airflow-common
   image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.9.1}
   environment:
     &airflow-common-env
-
-    # Executor responsável por orquestrar tarefas em workers paralelos
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-
-    # Conexão com o banco de dados PostgreSQL (metadados do Airflow)
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-
-    # Backend para armazenar resultados de tarefas
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
-
-    # Broker de mensagens para o Celery
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-
-    # Chave de criptografia para variáveis (pode ser gerada com `airflow fernet-key`)
     AIRFLOW__CORE__FERNET_KEY: ''
-
-    # Define se DAGs ficam pausadas por padrão
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-
-    # Carrega DAGs de exemplo (útil para testes locais)
     AIRFLOW__CORE__LOAD_EXAMPLES: 'true'
-
-    # Permite autenticação por API e UI
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
-
-    # Habilita verificação de saúde do scheduler
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
 
-    # Requisitos adicionais do pip
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
-
-    # Variáveis de ambiente da AWS/X para uso com boto3
+    # Variáveis de ambiente sensíveis
     AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
     AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     TWITTER_BEARER_TOKEN: ${TWITTER_BEARER_TOKEN}
 
-  # Volumes montados no container para persistência e visibilidade dos scripts/dados
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
+    - ${AIRFLOW_PROJ_DIR:-.}/requirements.txt:/requirements.txt
   user: "${AIRFLOW_UID:-50000}:0"
-
-  # Define dependências de inicialização
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -57,7 +33,6 @@ x-airflow-common:
     postgres:
       condition: service_healthy
 
-# Banco de dados PostgreSQL para metadados do Airflow
 services:
   postgres:
     image: postgres:13
@@ -74,7 +49,6 @@ services:
       start_period: 5s
     restart: always
 
-# Redis usado como broker de tarefas Celery
   redis:
     image: redis:7.2-bookworm
     expose:
@@ -87,10 +61,10 @@ services:
       start_period: 30s
     restart: always
 
-# Interface web do Airflow acessível via http://localhost:8080
   airflow-webserver:
     <<: *airflow-common
-    command: webserver
+    command: >
+      bash -c "pip install -r /requirements.txt && airflow webserver"
     ports:
       - "8080:8080"
     healthcheck:
@@ -105,10 +79,10 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-# Scheduler: responsável por decidir quando tarefas devem ser executadas
   airflow-scheduler:
     <<: *airflow-common
-    command: scheduler
+    command: >
+      bash -c "pip install -r /requirements.txt && airflow scheduler"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
       interval: 30s
@@ -121,10 +95,10 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-# Worker que executa as tarefas definidas nas DAGs
   airflow-worker:
     <<: *airflow-common
-    command: celery worker
+    command: >
+      bash -c "pip install -r /requirements.txt && airflow celery worker"
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -139,10 +113,10 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-# Triggerer: usado para sensores (eventos assíncronos)
   airflow-triggerer:
     <<: *airflow-common
-    command: triggerer
+    command: >
+      bash -c "pip install -r /requirements.txt && airflow triggerer"
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
       interval: 30s
@@ -155,7 +129,6 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-# Serviço de inicialização (migrations, usuário admin)
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
@@ -171,12 +144,10 @@ services:
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
-      _PIP_ADDITIONAL_REQUIREMENTS: ''
     user: "0:0"
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
 
-# Container opcional para executar comandos no Airflow (ex: airflow dags list)
   airflow-cli:
     <<: *airflow-common
     profiles:
@@ -189,10 +160,10 @@ services:
       - -c
       - airflow
 
-# Interface web do Flower para monitoramento dos workers Celery
   flower:
     <<: *airflow-common
-    command: celery flower
+    command: >
+      bash -c "pip install -r /requirements.txt && airflow celery flower"
     profiles:
       - flower
     ports:
@@ -209,6 +180,5 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-# 💾 Volume persistente para o PostgreSQL
 volumes:
   postgres-db-volume:
