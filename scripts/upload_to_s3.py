@@ -1,16 +1,19 @@
-import boto3  # SDK da AWS para interagir com o S3
-import logging  # Para registrar mensagens de log
-import os  # Para verificar existência do arquivo local
+import boto3
+import logging
+import os
 
-def upload_to_s3(file_path, bucket_name, s3_key):  # Função que envia um arquivo local para o bucket S3
-    if not os.path.exists(file_path):  # Verifica se o arquivo existe antes de tentar enviar
-        logging.error(f"Arquivo não encontrado: {file_path}")  # Loga erro se o arquivo não for encontrado
-        raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")  # Lança exceção para interromper a DAG
+def upload_to_s3(file_path, bucket_name, s3_key):
+    # Verifica se o arquivo existe
+    if not os.path.exists(file_path):
+        logging.error(f"Arquivo não encontrado: {file_path}")
+        raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
 
     try:
-        s3 = boto3.client('s3')  # Cria cliente do S3 com base nas credenciais de ambiente
-        s3.upload_file(file_path, bucket_name, s3_key)  # Envia o arquivo para o bucket com a chave especificada
-        logging.info(f"Upload feito com sucesso: s3://{bucket_name}/{s3_key}")  # Loga sucesso do upload
-    except Exception as e:  # Captura qualquer erro que acontecer
-        logging.error(f"Erro no upload: {str(e)}")  # Loga o erro com mensagem
-        raise  # Repassa o erro para o Airflow registrar como falha
+        # Cria cliente do S3 e realiza o upload
+        s3 = boto3.client('s3')
+        s3.upload_file(file_path, bucket_name, s3_key)
+        logging.info(f"Upload feito com sucesso: s3://{bucket_name}/{s3_key}")
+    except Exception as e:
+        # Registra e repassa o erro
+        logging.error(f"Erro no upload: {str(e)}")
+        raise
