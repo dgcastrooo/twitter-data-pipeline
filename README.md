@@ -52,7 +52,9 @@ A DAG do Airflow executa as seguintes tarefas:
 
 ## 📸 Diagrama do Pipeline
 
-> *(A imagem do fluxo será adicionada aqui posteriormente)*
+<p align="center">
+  <img src="pipeline_diagram.png" width="600px">
+</p>
 
 ## ▶️ Como Executar Localmente
 
