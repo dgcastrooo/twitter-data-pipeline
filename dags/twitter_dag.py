@@ -7,7 +7,12 @@ import logging
 import re
 import html
 import tweepy
+
+# Função externa para upload no S3
 from scripts.upload_to_s3 import upload_to_s3
+
+# Função externa para carga no Snowflake
+from scripts.load_to_snowflake import main as load_to_snowflake_main
 
 default_args = {
     'owner': 'diogo',
@@ -17,6 +22,7 @@ default_args = {
     'email_on_failure': False,
 }
 
+# Função de extração e transformação dos tweets
 def extract_and_transform():
     logging.basicConfig(level=logging.INFO)
     bearer_token = os.getenv("TWITTER_BEARER_TOKEN")
@@ -60,16 +66,13 @@ def extract_and_transform():
     if df.empty:
         raise ValueError("DataFrame resultante está vazio.")
 
-    # Função refinada para limpar texto HTML
+    # Limpa texto de HTML e espaços
     def clean_html(text):
         try:
             if not isinstance(text, str):
                 return text
-            # Descodifica entidades HTML (&lt; &gt; &amp;)
             text = html.unescape(text)
-            # Remove tags HTML (como <b>, <div>, <br>, etc.)
             text = re.sub(r"<[^>]+>", "", text)
-            # Remove caracteres não imprimíveis e espaços extras
             text = re.sub(r"[\r\n\t]+", " ", text)
             text = re.sub(r"\s+", " ", text)
             return text.strip()
@@ -79,22 +82,29 @@ def extract_and_transform():
 
     df["text"] = df["text"].apply(clean_html)
 
+    # Salva em formato parquet
     output_path = os.path.join(os.getcwd(), 'data', 'tweets_clean.parquet')
     df.to_parquet(output_path, index=False)
     logging.info(f"Arquivo Parquet salvo com sucesso em: {output_path}")
 
+# Função que faz upload para o S3
 def upload():
     file_path = '/opt/airflow/data/tweets_clean.parquet'
     bucket_name = 'twitter-data-pipeline-diogo'
     s3_key = 'twitter/tweets_clean.parquet'
     upload_to_s3(file_path, bucket_name, s3_key)
 
+# Função que carrega dados para o Snowflake
+def load_to_snowflake():
+    load_to_snowflake_main()
+
+# Definição da DAG
 with DAG(
     dag_id='twitter_dag',
     default_args=default_args,
     schedule_interval=None,
     catchup=False,
-    description='Extrai, limpa e envia tweets para S3',
+    description='Extrai, limpa, envia tweets para S3 e carrega no Snowflake',
 ) as dag:
 
     extract_transform_task = PythonOperator(
@@ -107,4 +117,10 @@ with DAG(
         python_callable=upload
     )
 
-    extract_transform_task >> upload_task
+    load_snowflake_task = PythonOperator(
+        task_id='load_to_snowflake',
+        python_callable=load_to_snowflake
+    )
+
+    # Define a ordem das tasks: Extração → Upload → Snowflake
+    extract_transform_task >> upload_task >> load_snowflake_task
