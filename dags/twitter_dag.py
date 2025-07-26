@@ -2,12 +2,12 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import os
-import json
 import pandas as pd
 import logging
-import re  # regex para limpar HTML
-from scripts.upload_to_s3 import upload_to_s3
+import re
+import html
 import tweepy
+from scripts.upload_to_s3 import upload_to_s3
 
 default_args = {
     'owner': 'diogo',
@@ -60,13 +60,22 @@ def extract_and_transform():
     if df.empty:
         raise ValueError("DataFrame resultante está vazio.")
 
-    # ✅ Limpeza do campo `text` usando regex
-    def clean_html(raw_text):
-        # Remove entidades HTML como &lt; &gt; etc.
-        no_entities = re.sub(r"&[a-z]+;", "", raw_text)
-        # Remove tags HTML como <td>, <br>, etc.
-        clean_text = re.sub(r"<.*?>", "", no_entities)
-        return clean_text.strip()
+    # Função refinada para limpar texto HTML
+    def clean_html(text):
+        try:
+            if not isinstance(text, str):
+                return text
+            # Descodifica entidades HTML (&lt; &gt; &amp;)
+            text = html.unescape(text)
+            # Remove tags HTML (como <b>, <div>, <br>, etc.)
+            text = re.sub(r"<[^>]+>", "", text)
+            # Remove caracteres não imprimíveis e espaços extras
+            text = re.sub(r"[\r\n\t]+", " ", text)
+            text = re.sub(r"\s+", " ", text)
+            return text.strip()
+        except Exception as e:
+            logging.warning(f"Erro ao limpar texto: {e}")
+            return text
 
     df["text"] = df["text"].apply(clean_html)
 
@@ -85,7 +94,7 @@ with DAG(
     default_args=default_args,
     schedule_interval=None,
     catchup=False,
-    description='Extrai e transforma tweets com limpeza e upload para o S3',
+    description='Extrai, limpa e envia tweets para S3',
 ) as dag:
 
     extract_transform_task = PythonOperator(
