@@ -2,5 +2,6 @@ boto3
 tweepy
 pandas
 pyarrow
-apache-airflow
 snowflake-connector-python
+python-dotenv
+beautifulsoup4
