@@ -3,12 +3,12 @@ import logging
 import pandas as pd
 import tweepy
 from bs4 import BeautifulSoup
-
-# Carrega variáveis do .env local
-load_dotenv()
+from dotenv import load_dotenv
 
 def extract_and_transform():
     logging.basicConfig(level=logging.INFO)
+    # Carrega variáveis do .env local
+    load_dotenv()
     
     bearer_token = os.getenv("TWITTER_BEARER_TOKEN")
     if not bearer_token:
