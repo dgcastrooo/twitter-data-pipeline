@@ -22,6 +22,9 @@ cursor = conn.cursor()
 parquet_path = 'data/tweets_clean.parquet'
 df = pd.read_parquet(parquet_path)
 
+# Converte 'created_at' para string no formato ISO 8601
+df['created_at'] = df['created_at'].astype(str) 
+
 # Insere os dados no Snowflake
 for _, row in df.iterrows():
     cursor.execute("""
@@ -29,7 +32,7 @@ for _, row in df.iterrows():
         VALUES (%s, %s, %s, %s, %s, %s, %s)
     """, (
         str(row['tweet_id']),
-        row['created_at'],
+        row['created_at'],  
         row['text'],
         str(row['user_id']),
         row['user_name'],
