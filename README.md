@@ -30,8 +30,9 @@ twitter-data-papeline-main/
 ├── dags/                      # DAG principal do Airflow
 │   └── twitter_dag.py
 ├── scripts/                   # Scripts de integração com S3 e Snowflake
-│   ├── upload_to_s3.py
+│   ├── extract_and_transform.py
 │   └── load_to_snowflake.py
+│   └── upload_to_s3.py 
 ├── data/                      # Dados de exemplo
 │   └── tweets_sample.json
 ├── config/
