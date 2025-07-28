@@ -2,10 +2,14 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
 
 from scripts.extract_and_transform import extract_and_transform
 from scripts.upload_to_s3 import upload_to_s3
 from scripts.load_to_snowflake import load_to_snowflake
+
+# Carrega variáveis do .env local
+load_dotenv()
 
 # Argumentos default
 default_args = {
