@@ -3,7 +3,7 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import os
 
-from scripts.extract_transform import extract_and_transform
+from scripts.extract_and_transform import extract_and_transform
 from scripts.upload_to_s3 import upload_to_s3
 from scripts.load_to_snowflake import load_to_snowflake
 
