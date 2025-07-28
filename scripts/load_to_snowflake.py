@@ -39,4 +39,4 @@ for _, row in df.iterrows():
 
 cursor.close()
 conn.close()
-print("✅ Dados carregados com sucesso no Snowflake.")
+print("Dados carregados com sucesso no Snowflake.")
